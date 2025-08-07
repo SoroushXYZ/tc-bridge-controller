@@ -159,8 +159,15 @@ class BridgeController {
             </button>
         `).join('');
 
-        // Add event listeners to tabs
+        // Add event listeners to tabs and restore selection state
         document.querySelectorAll('.interface-tab').forEach(tab => {
+            const interfaceName = tab.dataset.interface;
+            
+            // Restore selection state if this interface was previously selected
+            if (this.selectedTCTargets.includes(interfaceName)) {
+                tab.classList.add('selected');
+            }
+            
             tab.addEventListener('click', (e) => {
                 const interfaceName = e.currentTarget.dataset.interface;
                 
