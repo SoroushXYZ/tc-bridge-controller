@@ -4,6 +4,7 @@ class BridgeController {
     constructor() {
         this.socket = io();
         this.selectedInterfaces = [];
+        this.selectedTCTargets = [];
         this.currentBridgeStatus = null;
         this.init();
     }
@@ -126,6 +127,56 @@ class BridgeController {
                 }
             });
         });
+
+        // Update interface tabs for TC selection
+        this.updateInterfaceTabs(interfaces);
+    }
+
+    updateInterfaceTabs(interfaces = null) {
+        const tabsContainer = document.getElementById('interface-tabs');
+        
+        if (!interfaces) {
+            // Get interfaces from the sidebar list
+            const interfaceItems = document.querySelectorAll('#interface-list .interface-item');
+            interfaces = Array.from(interfaceItems).map(item => {
+                const name = item.querySelector('.interface-name').textContent;
+                const ip = item.querySelector('.interface-ip').textContent;
+                const status = item.querySelector('.interface-status').textContent;
+                return { name, ip, status };
+            });
+        }
+
+        if (interfaces.length === 0) {
+            tabsContainer.innerHTML = '<div class="text-muted">No interfaces available</div>';
+            return;
+        }
+
+        // Create interface tabs
+        tabsContainer.innerHTML = interfaces.map(iface => `
+            <button type="button" class="btn interface-tab" data-interface="${iface.name}">
+                <i class="fas fa-ethernet"></i> ${iface.name}
+                <small class="d-block">${iface.ip}</small>
+            </button>
+        `).join('');
+
+        // Add event listeners to tabs
+        document.querySelectorAll('.interface-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const interfaceName = e.currentTarget.dataset.interface;
+                
+                if (e.currentTarget.classList.contains('selected')) {
+                    // Deselect
+                    e.currentTarget.classList.remove('selected');
+                    this.selectedTCTargets = this.selectedTCTargets.filter(i => i !== interfaceName);
+                } else {
+                    // Select
+                    e.currentTarget.classList.add('selected');
+                    this.selectedTCTargets.push(interfaceName);
+                }
+                
+                this.log(`TC target interfaces: ${this.selectedTCTargets.join(', ')}`, 'info');
+            });
+        });
     }
 
     showInterfaceModal() {
@@ -205,13 +256,20 @@ class BridgeController {
             bandwidth: document.getElementById('bandwidth').value || null,
             delay: document.getElementById('delay').value || null,
             jitter: document.getElementById('jitter').value || null,
-            packet_loss: document.getElementById('packet-loss').value || null
+            packet_loss: document.getElementById('packet-loss').value || null,
+            interfaces: this.selectedTCTargets
         };
 
         // Validate that at least one rule is set
-        const hasRules = Object.values(formData).some(value => value !== null);
+        const hasRules = Object.values(formData).some(value => value !== null && value !== '');
         if (!hasRules) {
             this.showAlert('Please set at least one traffic control rule', 'warning');
+            return;
+        }
+
+        // Validate that at least one interface is selected
+        if (this.selectedTCTargets.length === 0) {
+            this.showAlert('Please select at least one interface to apply TC rules to', 'warning');
             return;
         }
 
@@ -227,8 +285,9 @@ class BridgeController {
             const result = await response.json();
             
             if (result.success) {
-                this.log('TC rules applied successfully', 'success');
+                this.log(`TC rules applied successfully to ${this.selectedTCTargets.join(', ')}`, 'success');
                 this.showAlert('TC rules applied successfully', 'success');
+                this.updateInterfaceTabs();
             } else {
                 this.log('Failed to apply TC rules: ' + result.message, 'error');
                 this.showAlert('Failed to apply TC rules: ' + result.message, 'danger');

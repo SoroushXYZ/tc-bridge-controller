@@ -112,49 +112,91 @@ class NetworkBridge:
             return False, f"Error destroying bridge: {str(e)}"
     
     def apply_tc_rules(self, rules):
-        """Apply traffic control rules to the bridge"""
+        """Apply traffic control rules to selected interfaces"""
         try:
-            # Clear existing tc rules
-            subprocess.run(['tc', 'qdisc', 'del', 'dev', self.bridge_name, 'root'], 
-                         stderr=subprocess.DEVNULL)
+            # Get target interfaces
+            target_interfaces = rules.get('interfaces', [])
+            if not target_interfaces:
+                return False, "No interfaces selected for TC rules"
             
-            if not rules or not self.is_active:
-                return True, "TC rules cleared"
+            # Clear existing tc rules from target interfaces
+            for interface in target_interfaces:
+                subprocess.run(['tc', 'qdisc', 'del', 'dev', interface, 'root'], 
+                             stderr=subprocess.DEVNULL)
             
-            # Create root qdisc
-            subprocess.run(['tc', 'qdisc', 'add', 'dev', self.bridge_name, 'root', 'handle', '1:', 'htb'], check=True)
+            if not rules or len([k for k, v in rules.items() if k != 'interfaces' and v is not None and v != '']) == 0:
+                return True, f"TC rules cleared from {len(target_interfaces)} interfaces"
             
-            # Apply bandwidth limiting
-            if rules.get('bandwidth'):
-                bandwidth = rules['bandwidth']
-                subprocess.run([
-                    'tc', 'class', 'add', 'dev', self.bridge_name, 'parent', '1:', 
-                    'classid', '1:1', 'htb', 'rate', f'{bandwidth}mbit'
-                ], check=True)
+            # Filter out None and empty values (excluding interfaces)
+            filtered_rules = {k: v for k, v in rules.items() if k != 'interfaces' and v is not None and v != ''}
             
-            # Apply delay and jitter
-            if rules.get('delay') or rules.get('jitter'):
-                delay = rules.get('delay', 0)
-                jitter = rules.get('jitter', 0)
-                
-                # Create netem qdisc for delay/jitter
-                subprocess.run([
-                    'tc', 'qdisc', 'add', 'dev', self.bridge_name, 'parent', '1:1',
-                    'handle', '10:', 'netem', 'delay', f'{delay}ms', f'{jitter}ms'
-                ], check=True)
+            if not filtered_rules:
+                return True, "No valid TC rules to apply"
             
-            # Apply packet loss
-            if rules.get('packet_loss'):
-                loss = rules['packet_loss']
-                subprocess.run([
-                    'tc', 'qdisc', 'add', 'dev', self.bridge_name, 'parent', '1:1',
-                    'handle', '20:', 'netem', 'loss', f'{loss}%'
-                ], check=True)
+            # Apply TC rules to each selected interface
+            for interface in target_interfaces:
+                try:
+                    # Check if we have bandwidth limiting
+                    has_bandwidth = filtered_rules.get('bandwidth') and int(filtered_rules['bandwidth']) > 0
+                    has_delay = filtered_rules.get('delay') and int(filtered_rules.get('delay', 0)) > 0
+                    has_jitter = filtered_rules.get('jitter') and int(filtered_rules.get('jitter', 0)) > 0
+                    has_loss = filtered_rules.get('packet_loss') and float(filtered_rules.get('packet_loss', 0)) > 0
+                    
+                    # If we only have delay/jitter/loss without bandwidth, use netem directly
+                    if not has_bandwidth and (has_delay or has_jitter or has_loss):
+                        cmd = ['tc', 'qdisc', 'add', 'dev', interface, 'root', 'handle', '1:', 'netem']
+                        
+                        if has_delay:
+                            delay = int(filtered_rules['delay'])
+                            cmd.extend(['delay', f'{delay}ms'])
+                            if has_jitter:
+                                jitter = int(filtered_rules['jitter'])
+                                cmd.append(f'{jitter}ms')
+                        
+                        if has_loss:
+                            loss = float(filtered_rules['packet_loss'])
+                            cmd.extend(['loss', f'{loss}%'])
+                        
+                        subprocess.run(cmd, check=True)
+                        
+                    elif has_bandwidth:
+                        # Use HTB for bandwidth limiting
+                        subprocess.run(['tc', 'qdisc', 'add', 'dev', interface, 'root', 'handle', '1:', 'htb'], check=True)
+                        
+                        # Apply bandwidth limiting
+                        bandwidth = int(filtered_rules['bandwidth'])
+                        subprocess.run([
+                            'tc', 'class', 'add', 'dev', interface, 'parent', '1:', 
+                            'classid', '1:1', 'htb', 'rate', f'{bandwidth}mbit'
+                        ], check=True)
+                        
+                        # Apply delay/jitter/loss to the HTB class
+                        if has_delay or has_jitter or has_loss:
+                            cmd = ['tc', 'qdisc', 'add', 'dev', interface, 'parent', '1:1',
+                                   'handle', '10:', 'netem']
+                            
+                            if has_delay:
+                                delay = int(filtered_rules['delay'])
+                                cmd.extend(['delay', f'{delay}ms'])
+                                if has_jitter:
+                                    jitter = int(filtered_rules['jitter'])
+                                    cmd.append(f'{jitter}ms')
+                            
+                            if has_loss:
+                                loss = float(filtered_rules['packet_loss'])
+                                cmd.extend(['loss', f'{loss}%'])
+                            
+                            subprocess.run(cmd, check=True)
+                            
+                except subprocess.CalledProcessError as e:
+                    return False, f"Error applying TC rules to {interface}: {str(e)}"
             
-            return True, "TC rules applied successfully"
+            return True, f"TC rules applied successfully to {len(self.interfaces)} interfaces"
             
         except subprocess.CalledProcessError as e:
             return False, f"Error applying TC rules: {str(e)}"
+        except (ValueError, TypeError) as e:
+            return False, f"Invalid TC rule values: {str(e)}"
     
     def get_bridge_status(self):
         """Get current bridge status"""
@@ -190,6 +232,18 @@ class NetworkBridge:
                 'ip': None,
                 'status': 'error'
             }
+
+    def get_tc_status(self, interface):
+        """Get TC status for a specific interface"""
+        try:
+            result = subprocess.run(['tc', 'qdisc', 'show', 'dev', interface], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                return True, result.stdout.strip()
+            else:
+                return False, "No TC rules"
+        except:
+            return False, "Error checking TC status"
 
 # Global bridge instance
 bridge = NetworkBridge()
@@ -235,7 +289,8 @@ def apply_tc_rules():
         'bandwidth': data.get('bandwidth'),
         'delay': data.get('delay'),
         'jitter': data.get('jitter'),
-        'packet_loss': data.get('packet_loss')
+        'packet_loss': data.get('packet_loss'),
+        'interfaces': data.get('interfaces', [])
     }
     
     success, message = bridge.apply_tc_rules(rules)
@@ -246,6 +301,12 @@ def clear_tc_rules():
     """Clear traffic control rules"""
     success, message = bridge.apply_tc_rules({})
     return jsonify({'success': success, 'message': message})
+
+@app.route('/api/tc/status/<interface>')
+def get_tc_status(interface):
+    """Get TC status for a specific interface"""
+    has_tc, status = bridge.get_tc_status(interface)
+    return jsonify({'has_tc': has_tc, 'status': status})
 
 def background_monitor():
     """Background thread to monitor network status"""
