@@ -32,14 +32,22 @@ class NetworkBridge:
             if interface not in EXCLUDED_INTERFACES and not interface.startswith('br'):
                 try:
                     addrs = netifaces.ifaddresses(interface)
+                    ip_addr = None
                     if netifaces.AF_INET in addrs:
-                        interfaces.append({
-                            'name': interface,
-                            'ip': addrs[netifaces.AF_INET][0]['addr'],
-                            'status': 'up' if self._is_interface_up(interface) else 'down'
-                        })
-                except:
-                    continue
+                        ip_addr = addrs[netifaces.AF_INET][0]['addr']
+                    
+                    interfaces.append({
+                        'name': interface,
+                        'ip': ip_addr or 'No IP',
+                        'status': 'up' if self._is_interface_up(interface) else 'down'
+                    })
+                except Exception as e:
+                    # Still include interface even if we can't get IP
+                    interfaces.append({
+                        'name': interface,
+                        'ip': 'Unknown',
+                        'status': 'up' if self._is_interface_up(interface) else 'down'
+                    })
         return interfaces
     
     def _is_interface_up(self, interface):
