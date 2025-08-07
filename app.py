@@ -198,8 +198,59 @@ class NetworkBridge:
         except (ValueError, TypeError) as e:
             return False, f"Invalid TC rule values: {str(e)}"
     
+    def detect_existing_bridge(self):
+        """Detect if bridge already exists and load its state"""
+        try:
+            # Check if bridge exists
+            result = subprocess.run(['ip', 'link', 'show', self.bridge_name], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                # Bridge exists, get its interfaces
+                brctl_result = subprocess.run(['brctl', 'show', self.bridge_name], 
+                                            capture_output=True, text=True)
+                if brctl_result.returncode == 0:
+                    interfaces = []
+                    lines = brctl_result.stdout.split('\n')
+                    
+                    # Find the line with our bridge name and parse interfaces
+                    for i, line in enumerate(lines):
+                        if line.strip().startswith(self.bridge_name):
+                            # Parse the bridge line itself for interfaces
+                            parts = line.split('\t')
+                            if len(parts) >= 4:
+                                # Last part might contain interface names
+                                last_part = parts[-1].strip()
+                                if last_part and last_part != 'interfaces':
+                                    interfaces.extend(last_part.split())
+                            
+                            # Look for additional interface names in subsequent indented lines
+                            for j in range(i + 1, len(lines)):
+                                next_line = lines[j].strip()
+                                if next_line and not next_line.startswith('bridge name'):
+                                    # Check if this line is indented (interface line)
+                                    if lines[j].startswith('\t') or lines[j].startswith(' '):
+                                        interface_name = next_line.split()[0]
+                                        if interface_name and interface_name != 'interfaces':
+                                            interfaces.append(interface_name)
+                                    else:
+                                        # No more indented lines, stop parsing
+                                        break
+                            break
+                    
+                    self.interfaces = interfaces
+                    self.is_active = True
+                    return True
+            return False
+        except Exception as e:
+            print(f"Error detecting existing bridge: {e}")
+            return False
+
     def get_bridge_status(self):
         """Get current bridge status"""
+        # First check if bridge exists but we haven't detected it yet
+        if not self.is_active:
+            self.detect_existing_bridge()
+        
         if not self.is_active:
             return {
                 'active': False,
@@ -247,6 +298,9 @@ class NetworkBridge:
 
 # Global bridge instance
 bridge = NetworkBridge()
+
+# Detect existing bridge on startup
+bridge.detect_existing_bridge()
 
 @app.route('/')
 def index():
