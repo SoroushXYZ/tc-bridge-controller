@@ -310,19 +310,35 @@ class BridgeController {
             return;
         }
 
+        // If no interfaces are selected, clear from all available interfaces
+        let interfacesToClear = this.selectedTCTargets;
+        if (interfacesToClear.length === 0) {
+            // Get all available interfaces from the sidebar
+            const interfaceItems = document.querySelectorAll('#interface-list .interface-item');
+            interfacesToClear = Array.from(interfaceItems).map(item => 
+                item.querySelector('.interface-name').textContent
+            );
+        }
+
         try {
             const response = await fetch('/api/tc/clear', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify({
+                    interfaces: interfacesToClear
+                })
             });
 
             const result = await response.json();
             
             if (result.success) {
-                this.log('TC rules cleared successfully', 'success');
+                this.log(`TC rules cleared successfully from ${interfacesToClear.join(', ')}`, 'success');
                 this.showAlert('TC rules cleared successfully', 'success');
+                // Clear the selection after successful clear
+                this.selectedTCTargets = [];
+                this.updateInterfaceTabs();
             } else {
                 this.log('Failed to clear TC rules: ' + result.message, 'error');
                 this.showAlert('Failed to clear TC rules: ' + result.message, 'danger');

@@ -299,7 +299,12 @@ def apply_tc_rules():
 @app.route('/api/tc/clear', methods=['POST'])
 def clear_tc_rules():
     """Clear traffic control rules"""
-    success, message = bridge.apply_tc_rules({})
+    data = request.get_json() or {}
+    interfaces = data.get('interfaces', [])
+    
+    # Create empty rules with interfaces to clear
+    rules = {'interfaces': interfaces}
+    success, message = bridge.apply_tc_rules(rules)
     return jsonify({'success': success, 'message': message})
 
 @app.route('/api/tc/status/<interface>')
