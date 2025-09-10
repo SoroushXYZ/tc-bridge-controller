@@ -11,8 +11,11 @@ A modern web-based UI for managing network bridges with traffic control (tc) fun
   - Jitter (delay variation)
   - Packet loss simulation
 - **Real-time Monitoring**: Live status updates and network statistics
-- **Modern UI**: Clean, responsive web interface
+- **Per-Interface Statistics**: Select any interface to view detailed real-time stats
+- **Interface Selector**: Choose which interface to monitor with rates (B/s, pps)
+- **Modern UI**: Clean, responsive web interface with color-coded statistics
 - **Interface Selection**: Easy selection of network interfaces for bridge creation
+- **Bridge Persistence**: Automatically detects existing bridges on startup
 
 ## Requirements
 
@@ -40,6 +43,12 @@ A modern web-based UI for managing network bridges with traffic control (tc) fun
 4. **Access the web interface**:
    Open your browser and navigate to `http://localhost:5000`
 
+## Screenshot
+
+![TC Bridge Controller Interface](screenshot.png)
+
+*The main interface showing bridge status, traffic control settings, and real-time network statistics with interface selector.*
+
 ## Usage
 
 ### Creating a Bridge
@@ -51,19 +60,30 @@ A modern web-based UI for managing network bridges with traffic control (tc) fun
 
 ### Applying Traffic Control Rules
 
-1. Fill in the desired parameters in the Traffic Control panel:
-   - **Bandwidth Limit**: Set maximum bandwidth in Mbps
-   - **Delay**: Add network delay in milliseconds
-   - **Jitter**: Add delay variation in milliseconds
-   - **Packet Loss**: Simulate packet loss as a percentage
+1. Select the interfaces you want to apply TC rules to using the interface tabs
+2. Fill in the desired parameters in the Traffic Control panel:
+   - **Bandwidth Limit**: Set maximum bandwidth in Mbps (default: unlimited)
+   - **Delay**: Add network delay in milliseconds (default: 0ms)
+   - **Jitter**: Add delay variation in milliseconds (default: 0ms)
+   - **Packet Loss**: Simulate packet loss as a percentage (default: 0%)
 
-2. Click "Apply TC Rules" to apply the settings
+3. Click "Apply TC Rules" to apply the settings
+
+### Monitoring Network Statistics
+
+1. Use the interface selector dropdown to choose which interface to monitor
+2. View real-time statistics including:
+   - **Incoming/Outgoing Data Rates**: Bytes per second with totals
+   - **Incoming/Outgoing Packet Rates**: Packets per second with totals
+   - **Total Throughput**: Combined data and packet rates
+   - **Error Rate**: Percentage of errors with total count
+3. Statistics update every second automatically
 
 ### Managing the Bridge
 
 - **Destroy Bridge**: Removes the bridge and restores original interface configuration
-- **Clear TC Rules**: Removes all traffic control rules
-- **Reset Form**: Clears the traffic control form
+- **Clear TC Rules**: Removes all traffic control rules from selected interfaces
+- **Clear Form**: Clears the traffic control form (keeps interface selections)
 
 ## Network Interface Examples
 
@@ -103,6 +123,9 @@ The application provides REST API endpoints:
 - `POST /api/bridge/destroy` - Destroy network bridge
 - `POST /api/tc/apply` - Apply traffic control rules
 - `POST /api/tc/clear` - Clear traffic control rules
+- `GET /api/tc/status/<interface>` - Get TC status for specific interface
+- `GET /api/network/stats` - Get network statistics for all interfaces
+- `GET /api/network/stats/<interface>` - Get detailed statistics for specific interface
 
 ## Security Notes
 
@@ -139,7 +162,10 @@ The application will automatically remove existing bridges before creating new o
 ```
 tc-bridge-controler/
 ├── app.py              # Main Flask application
+├── config.py           # Configuration settings
 ├── requirements.txt     # Python dependencies
+├── start.sh            # Startup script
+├── test_setup.py       # Environment test script
 ├── templates/
 │   └── index.html      # Main HTML template
 ├── static/
