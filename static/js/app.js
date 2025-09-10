@@ -92,6 +92,18 @@ class BridgeController {
         }
     }
 
+    async refreshInterfaceSelector() {
+        // Only refresh the interface selector dropdown, not the entire interface list
+        try {
+            const response = await fetch('/api/interfaces');
+            const interfaces = await response.json();
+            this.availableInterfaces = interfaces;
+            this.updateInterfaceSelector(interfaces);
+        } catch (error) {
+            this.log('Error refreshing interface selector: ' + error.message, 'error');
+        }
+    }
+
     async loadBridgeStatus() {
         try {
             const response = await fetch('/api/bridge/status');
@@ -390,6 +402,10 @@ class BridgeController {
     }
 
     updateBridgeStatus(status) {
+        // Check if status actually changed before updating
+        const statusChanged = this.currentBridgeStatus && 
+            this.currentBridgeStatus.active !== status.active;
+        
         this.currentBridgeStatus = status;
         const statusElement = document.getElementById('bridge-status');
         const detailsElement = document.getElementById('bridge-details');
@@ -409,8 +425,10 @@ class BridgeController {
             detailsElement.style.display = 'none';
         }
 
-        // Update interface selector when bridge status changes
-        this.updateInterfaceSelector(this.availableInterfaces);
+        // Only update interface selector if bridge status actually changed
+        if (statusChanged) {
+            this.updateInterfaceSelector(this.availableInterfaces);
+        }
     }
 
     log(message, type = 'info') {
@@ -467,6 +485,8 @@ class BridgeController {
 
     updateInterfaceSelector(interfaces) {
         const selector = document.getElementById('interface-selector');
+        const currentSelection = selector.value; // Preserve current selection
+        
         selector.innerHTML = '<option value="">Select interface...</option>';
         
         // Add bridge interfaces if bridge is active
@@ -488,6 +508,11 @@ class BridgeController {
                 selector.appendChild(option);
             }
         });
+        
+        // Restore selection if it still exists
+        if (currentSelection && selector.querySelector(`option[value="${currentSelection}"]`)) {
+            selector.value = currentSelection;
+        }
     }
 
     async loadInterfaceStats() {
@@ -603,9 +628,14 @@ class BridgeController {
     }
 
     updateNetworkStats(stats) {
-        // Update bridge status if it changed
-        if (this.currentBridgeStatus && this.currentBridgeStatus.active !== stats.bridge) {
-            this.loadInterfaces(); // Refresh interface list
+        // Only update interface selector if bridge status actually changed
+        const bridgeActive = stats.bridge && Object.keys(stats.bridge).length > 0;
+        const statusChanged = this.currentBridgeStatus && 
+            this.currentBridgeStatus.active !== bridgeActive;
+        
+        if (statusChanged) {
+            // Only refresh interface selector, not the entire interface list
+            this.refreshInterfaceSelector();
         }
         
         // If an interface is selected, load its stats
