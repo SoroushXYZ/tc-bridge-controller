@@ -398,7 +398,7 @@ class BridgeController {
         document.getElementById('delay').value = '';
         document.getElementById('jitter').value = '';
         document.getElementById('packet-loss').value = '';
-        this.log('TC form reset', 'info');
+        this.log('TC form cleared', 'info');
     }
 
     updateBridgeStatus(status) {

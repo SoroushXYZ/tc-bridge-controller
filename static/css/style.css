@@ -223,7 +223,7 @@ body {
 
 .stat-detail {
     font-size: 10px;
-    color: #adb5bd;
+    color: #6c757d;
     margin-top: 2px;
     font-weight: 500;
 }
@@ -279,6 +279,10 @@ body {
 
 .packet-error .stat-icon {
     background-color: #dc3545;
+}
+
+.packet-error-icon {
+    background-color: #dc3545 !important;
 }
 
 .packet-error .stat-value {
