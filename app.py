@@ -296,6 +296,101 @@ class NetworkBridge:
         except:
             return False, "Error checking TC status"
 
+    def get_network_stats(self):
+        """Get network statistics for the bridge and its interfaces"""
+        stats = {
+            'bridge': {
+                'rx_bytes': 0,
+                'tx_bytes': 0,
+                'rx_packets': 0,
+                'tx_packets': 0,
+                'rx_errors': 0,
+                'tx_errors': 0,
+                'rx_dropped': 0,
+                'tx_dropped': 0
+            },
+            'interfaces': {}
+        }
+        
+        try:
+            # Get bridge statistics
+            if self.is_active:
+                bridge_stats = self._get_interface_stats(self.bridge_name)
+                if bridge_stats:
+                    stats['bridge'] = bridge_stats
+            
+            # Get interface statistics
+            for interface in self.interfaces:
+                iface_stats = self._get_interface_stats(interface)
+                if iface_stats:
+                    stats['interfaces'][interface] = iface_stats
+            
+            return stats
+        except Exception as e:
+            print(f"Error getting network stats: {e}")
+            return stats
+
+    def _get_interface_stats(self, interface):
+        """Get statistics for a specific interface"""
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/rx_bytes', 'r') as f:
+                rx_bytes = int(f.read().strip())
+        except:
+            rx_bytes = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/tx_bytes', 'r') as f:
+                tx_bytes = int(f.read().strip())
+        except:
+            tx_bytes = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/rx_packets', 'r') as f:
+                rx_packets = int(f.read().strip())
+        except:
+            rx_packets = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/tx_packets', 'r') as f:
+                tx_packets = int(f.read().strip())
+        except:
+            tx_packets = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/rx_errors', 'r') as f:
+                rx_errors = int(f.read().strip())
+        except:
+            rx_errors = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/tx_errors', 'r') as f:
+                tx_errors = int(f.read().strip())
+        except:
+            tx_errors = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/rx_dropped', 'r') as f:
+                rx_dropped = int(f.read().strip())
+        except:
+            rx_dropped = 0
+            
+        try:
+            with open(f'/sys/class/net/{interface}/statistics/tx_dropped', 'r') as f:
+                tx_dropped = int(f.read().strip())
+        except:
+            tx_dropped = 0
+
+        return {
+            'rx_bytes': rx_bytes,
+            'tx_bytes': tx_bytes,
+            'rx_packets': rx_packets,
+            'tx_packets': tx_packets,
+            'rx_errors': rx_errors,
+            'tx_errors': tx_errors,
+            'rx_dropped': rx_dropped,
+            'tx_dropped': tx_dropped
+        }
+
 # Global bridge instance
 bridge = NetworkBridge()
 
@@ -367,18 +462,31 @@ def get_tc_status(interface):
     has_tc, status = bridge.get_tc_status(interface)
     return jsonify({'has_tc': has_tc, 'status': status})
 
+@app.route('/api/network/stats')
+def get_network_stats():
+    """Get network statistics"""
+    stats = bridge.get_network_stats()
+    return jsonify(stats)
+
 def background_monitor():
-    """Background thread to monitor network status"""
+    """Background thread to monitor network status and statistics"""
     while True:
+        # Always get network stats, regardless of bridge status
+        stats = bridge.get_network_stats()
+        socketio.emit('network_stats_update', stats)
+        
+        # Only get bridge status if bridge is active
         if bridge.is_active:
             status = bridge.get_bridge_status()
             socketio.emit('bridge_status_update', status)
-        time.sleep(2)
+        
+        time.sleep(1)  # Update every second
 
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
     emit('bridge_status_update', bridge.get_bridge_status())
+    emit('network_stats_update', bridge.get_network_stats())
 
 if __name__ == '__main__':
     # Start background monitoring thread

@@ -13,11 +13,15 @@ class BridgeController {
         this.setupEventListeners();
         this.loadInterfaces();
         this.loadBridgeStatus();
+        this.loadNetworkStats();
         this.updateCurrentTime();
         this.setupSocketListeners();
         
         // Update time every second
         setInterval(() => this.updateCurrentTime(), 1000);
+        
+        // Update network stats every second
+        setInterval(() => this.loadNetworkStats(), 1000);
     }
 
     setupEventListeners() {
@@ -62,6 +66,10 @@ class BridgeController {
         this.socket.on('bridge_status_update', (status) => {
             this.updateBridgeStatus(status);
         });
+        
+        this.socket.on('network_stats_update', (stats) => {
+            this.updateNetworkStats(stats);
+        });
     }
 
     async loadInterfaces() {
@@ -81,6 +89,16 @@ class BridgeController {
             this.updateBridgeStatus(status);
         } catch (error) {
             this.log('Error loading bridge status: ' + error.message, 'error');
+        }
+    }
+
+    async loadNetworkStats() {
+        try {
+            const response = await fetch('/api/network/stats');
+            const stats = await response.json();
+            this.updateNetworkStats(stats);
+        } catch (error) {
+            this.log('Error loading network stats: ' + error.message, 'error');
         }
     }
 
@@ -432,6 +450,39 @@ class BridgeController {
         if (timeElement) {
             timeElement.textContent = new Date().toLocaleTimeString();
         }
+    }
+
+    updateNetworkStats(stats) {
+        // Update bridge statistics
+        const bridgeStats = stats.bridge;
+        
+        // Calculate total packets (RX + TX)
+        const totalPackets = bridgeStats.rx_packets + bridgeStats.tx_packets;
+        
+        // Calculate total errors (RX + TX)
+        const totalErrors = bridgeStats.rx_errors + bridgeStats.tx_errors;
+        
+        // Update the display
+        document.getElementById('rx-bytes').textContent = this.formatBytes(bridgeStats.rx_bytes);
+        document.getElementById('tx-bytes').textContent = this.formatBytes(bridgeStats.tx_bytes);
+        document.getElementById('packets').textContent = this.formatNumber(totalPackets);
+        document.getElementById('errors').textContent = this.formatNumber(totalErrors);
+    }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    formatNumber(num) {
+        if (num === 0) return '0';
+        if (num < 1000) return num.toString();
+        if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
+        if (num < 1000000000) return (num / 1000000).toFixed(1) + 'M';
+        return (num / 1000000000).toFixed(1) + 'B';
     }
 
     clearInterfaceModalSelections() {
