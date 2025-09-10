@@ -248,6 +248,10 @@ class BridgeController {
                 this.log('Bridge destroyed successfully', 'success');
                 this.showAlert('Bridge destroyed successfully', 'success');
                 this.loadBridgeStatus();
+                
+                // Clear interface selections
+                this.selectedInterfaces = [];
+                this.clearInterfaceModalSelections();
             } else {
                 this.log('Failed to destroy bridge: ' + result.message, 'error');
                 this.showAlert('Failed to destroy bridge: ' + result.message, 'danger');
@@ -428,6 +432,18 @@ class BridgeController {
         if (timeElement) {
             timeElement.textContent = new Date().toLocaleTimeString();
         }
+    }
+
+    clearInterfaceModalSelections() {
+        // Clear all checkboxes in the interface modal
+        document.querySelectorAll('.interface-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        
+        // Clear the selected interfaces array
+        this.selectedInterfaces = [];
+        
+        this.log('Interface selections cleared', 'info');
     }
 }
 
