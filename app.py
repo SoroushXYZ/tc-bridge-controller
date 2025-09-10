@@ -330,6 +330,63 @@ class NetworkBridge:
             print(f"Error getting network stats: {e}")
             return stats
 
+    def get_interface_stats(self, interface_name):
+        """Get detailed statistics for a specific interface"""
+        try:
+            # Get raw stats
+            raw_stats = self._get_interface_stats(interface_name)
+            if not raw_stats:
+                return None
+            
+            # Calculate rates (we'll need to store previous values for rate calculation)
+            current_time = time.time()
+            
+            # Initialize previous stats if not exists
+            if not hasattr(self, '_prev_stats'):
+                self._prev_stats = {}
+            if not hasattr(self, '_prev_time'):
+                self._prev_time = {}
+            
+            # Calculate rates
+            rates = {}
+            if interface_name in self._prev_stats and interface_name in self._prev_time:
+                time_diff = current_time - self._prev_time[interface_name]
+                if time_diff > 0:
+                    prev = self._prev_stats[interface_name]
+                    rates = {
+                        'rx_bytes_per_sec': (raw_stats['rx_bytes'] - prev['rx_bytes']) / time_diff,
+                        'tx_bytes_per_sec': (raw_stats['tx_bytes'] - prev['tx_bytes']) / time_diff,
+                        'rx_packets_per_sec': (raw_stats['rx_packets'] - prev['rx_packets']) / time_diff,
+                        'tx_packets_per_sec': (raw_stats['tx_packets'] - prev['tx_packets']) / time_diff,
+                        'rx_errors_per_sec': (raw_stats['rx_errors'] - prev['rx_errors']) / time_diff,
+                        'tx_errors_per_sec': (raw_stats['tx_errors'] - prev['tx_errors']) / time_diff
+                    }
+            
+            # Store current stats for next calculation
+            self._prev_stats[interface_name] = raw_stats.copy()
+            self._prev_time[interface_name] = current_time
+            
+            # Get interface status
+            is_up = self._is_interface_up(interface_name)
+            
+            # Calculate error rate
+            total_packets = raw_stats['rx_packets'] + raw_stats['tx_packets']
+            total_errors = raw_stats['rx_errors'] + raw_stats['tx_errors']
+            error_rate = (total_errors / total_packets * 100) if total_packets > 0 else 0
+            
+            return {
+                'interface': interface_name,
+                'status': 'up' if is_up else 'down',
+                'raw_stats': raw_stats,
+                'rates': rates,
+                'error_rate': round(error_rate, 2),
+                'total_throughput': rates.get('rx_bytes_per_sec', 0) + rates.get('tx_bytes_per_sec', 0),
+                'total_packet_rate': rates.get('rx_packets_per_sec', 0) + rates.get('tx_packets_per_sec', 0)
+            }
+        except Exception as e:
+            print(f"Error getting interface stats for {interface_name}: {e}")
+            return None
+
     def _get_interface_stats(self, interface):
         """Get statistics for a specific interface"""
         try:
@@ -466,6 +523,14 @@ def get_tc_status(interface):
 def get_network_stats():
     """Get network statistics"""
     stats = bridge.get_network_stats()
+    return jsonify(stats)
+
+@app.route('/api/network/stats/<interface>')
+def get_interface_stats(interface):
+    """Get detailed statistics for a specific interface"""
+    stats = bridge.get_interface_stats(interface)
+    if stats is None:
+        return jsonify({'error': 'Interface not found or error getting stats'}), 404
     return jsonify(stats)
 
 def background_monitor():

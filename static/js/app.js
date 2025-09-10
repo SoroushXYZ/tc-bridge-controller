@@ -6,6 +6,8 @@ class BridgeController {
         this.selectedInterfaces = [];
         this.selectedTCTargets = [];
         this.currentBridgeStatus = null;
+        this.selectedInterface = null;
+        this.availableInterfaces = [];
         this.init();
     }
 
@@ -60,6 +62,12 @@ class BridgeController {
         document.getElementById('confirm-bridge-creation').addEventListener('click', () => {
             this.createBridge();
         });
+
+        // Interface selector for network stats
+        document.getElementById('interface-selector').addEventListener('change', (e) => {
+            this.selectedInterface = e.target.value;
+            this.loadInterfaceStats();
+        });
     }
 
     setupSocketListeners() {
@@ -76,7 +84,9 @@ class BridgeController {
         try {
             const response = await fetch('/api/interfaces');
             const interfaces = await response.json();
+            this.availableInterfaces = interfaces;
             this.renderInterfaceList(interfaces);
+            this.updateInterfaceSelector(interfaces);
         } catch (error) {
             this.log('Error loading interfaces: ' + error.message, 'error');
         }
@@ -398,6 +408,9 @@ class BridgeController {
             statusText.textContent = 'Inactive';
             detailsElement.style.display = 'none';
         }
+
+        // Update interface selector when bridge status changes
+        this.updateInterfaceSelector(this.availableInterfaces);
     }
 
     log(message, type = 'info') {
@@ -452,21 +465,153 @@ class BridgeController {
         }
     }
 
+    updateInterfaceSelector(interfaces) {
+        const selector = document.getElementById('interface-selector');
+        selector.innerHTML = '<option value="">Select interface...</option>';
+        
+        // Add bridge interfaces if bridge is active
+        if (this.currentBridgeStatus && this.currentBridgeStatus.active) {
+            this.currentBridgeStatus.interfaces.forEach(iface => {
+                const option = document.createElement('option');
+                option.value = iface;
+                option.textContent = `${iface} (Bridge)`;
+                selector.appendChild(option);
+            });
+        }
+        
+        // Add all available interfaces
+        interfaces.forEach(iface => {
+            if (!this.currentBridgeStatus || !this.currentBridgeStatus.interfaces.includes(iface.name)) {
+                const option = document.createElement('option');
+                option.value = iface.name;
+                option.textContent = `${iface.name} (${iface.ip})`;
+                selector.appendChild(option);
+            }
+        });
+    }
+
+    async loadInterfaceStats() {
+        if (!this.selectedInterface) {
+            this.hideInterfaceStats();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/network/stats/${this.selectedInterface}`);
+            if (response.ok) {
+                const stats = await response.json();
+                this.updateInterfaceStats(stats);
+            } else {
+                this.log(`Error loading stats for ${this.selectedInterface}: Interface not found`, 'error');
+                this.hideInterfaceStats();
+            }
+        } catch (error) {
+            this.log(`Error loading interface stats: ${error.message}`, 'error');
+            this.hideInterfaceStats();
+        }
+    }
+
+    updateInterfaceStats(stats) {
+        // Show interface status
+        const statusDiv = document.getElementById('interface-status');
+        const statusText = document.getElementById('interface-status-text');
+        statusDiv.style.display = 'block';
+        
+        const statusClass = stats.status === 'up' ? 'alert-success' : 'alert-danger';
+        const statusIcon = stats.status === 'up' ? 'fa-check-circle' : 'fa-times-circle';
+        statusDiv.innerHTML = `
+            <div class="col-12">
+                <div class="alert ${statusClass} d-flex align-items-center">
+                    <i class="fas ${statusIcon} me-2"></i>
+                    <span>Interface <strong>${stats.interface}</strong> is <strong>${stats.status}</strong></span>
+                </div>
+            </div>
+        `;
+
+        // Update statistics with rates and totals
+        const rates = stats.rates || {};
+        const raw = stats.raw_stats || {};
+
+        // Incoming rate and total
+        const rxRate = rates.rx_bytes_per_sec || 0;
+        const rxTotal = raw.rx_bytes || 0;
+        document.getElementById('rx-bytes').textContent = this.formatBytesPerSecond(rxRate);
+        document.getElementById('rx-total').textContent = `Total: ${this.formatBytes(rxTotal)}`;
+
+        // Outgoing rate and total
+        const txRate = rates.tx_bytes_per_sec || 0;
+        const txTotal = raw.tx_bytes || 0;
+        document.getElementById('tx-bytes').textContent = this.formatBytesPerSecond(txRate);
+        document.getElementById('tx-total').textContent = `Total: ${this.formatBytes(txTotal)}`;
+
+        // Incoming packet rate and total
+        const rxPacketRate = rates.rx_packets_per_sec || 0;
+        const rxPacketTotal = raw.rx_packets || 0;
+        document.getElementById('rx-packets').textContent = this.formatPacketsPerSecond(rxPacketRate);
+        document.getElementById('rx-packets-total').textContent = `Total: ${this.formatNumber(rxPacketTotal)}`;
+
+        // Outgoing packet rate and total
+        const txPacketRate = rates.tx_packets_per_sec || 0;
+        const txPacketTotal = raw.tx_packets || 0;
+        document.getElementById('tx-packets').textContent = this.formatPacketsPerSecond(txPacketRate);
+        document.getElementById('tx-packets-total').textContent = `Total: ${this.formatNumber(txPacketTotal)}`;
+
+        // Total data rate and total
+        const totalDataRate = rxRate + txRate;
+        const totalDataTotal = rxTotal + txTotal;
+        document.getElementById('total-bytes').textContent = this.formatBytesPerSecond(totalDataRate);
+        document.getElementById('total-bytes-total').textContent = `Total: ${this.formatBytes(totalDataTotal)}`;
+
+        // Total packet rate and total
+        const totalPacketRate = rxPacketRate + txPacketRate;
+        const totalPacketTotal = rxPacketTotal + txPacketTotal;
+        document.getElementById('total-packets').textContent = this.formatPacketsPerSecond(totalPacketRate);
+        document.getElementById('total-packets-total').textContent = `Total: ${this.formatNumber(totalPacketTotal)}`;
+
+        // Error rate and total
+        const errorRate = stats.error_rate || 0;
+        const errorTotal = (raw.rx_errors || 0) + (raw.tx_errors || 0);
+        document.getElementById('error-rate').textContent = `${errorRate.toFixed(2)}%`;
+        document.getElementById('error-total').textContent = `Total: ${this.formatNumber(errorTotal)} errors`;
+
+    }
+
+    hideInterfaceStats() {
+        document.getElementById('interface-status').style.display = 'none';
+        
+        // Reset all stats to default
+        document.getElementById('rx-bytes').textContent = '0 B/s';
+        document.getElementById('tx-bytes').textContent = '0 B/s';
+        document.getElementById('error-rate').textContent = '0%';
+        
+        // Reset packet stats
+        document.getElementById('rx-packets').textContent = '0 pps';
+        document.getElementById('tx-packets').textContent = '0 pps';
+        document.getElementById('total-packets').textContent = '0 pps';
+        
+        // Reset total data stats
+        document.getElementById('total-bytes').textContent = '0 B/s';
+        document.getElementById('total-bytes-total').textContent = 'Total: 0 B';
+        
+        // Reset totals
+        document.getElementById('rx-total').textContent = 'Total: 0 B';
+        document.getElementById('tx-total').textContent = 'Total: 0 B';
+        document.getElementById('rx-packets-total').textContent = 'Total: 0';
+        document.getElementById('tx-packets-total').textContent = 'Total: 0';
+        document.getElementById('total-packets-total').textContent = 'Total: 0';
+        document.getElementById('error-total').textContent = 'Total: 0 errors';
+    }
+
     updateNetworkStats(stats) {
-        // Update bridge statistics
-        const bridgeStats = stats.bridge;
+        // Update bridge status if it changed
+        if (this.currentBridgeStatus && this.currentBridgeStatus.active !== stats.bridge) {
+            this.loadInterfaces(); // Refresh interface list
+        }
         
-        // Calculate total packets (RX + TX)
-        const totalPackets = bridgeStats.rx_packets + bridgeStats.tx_packets;
-        
-        // Calculate total errors (RX + TX)
-        const totalErrors = bridgeStats.rx_errors + bridgeStats.tx_errors;
-        
-        // Update the display
-        document.getElementById('rx-bytes').textContent = this.formatBytes(bridgeStats.rx_bytes);
-        document.getElementById('tx-bytes').textContent = this.formatBytes(bridgeStats.tx_bytes);
-        document.getElementById('packets').textContent = this.formatNumber(totalPackets);
-        document.getElementById('errors').textContent = this.formatNumber(totalErrors);
+        // If an interface is selected, load its stats
+        if (this.selectedInterface) {
+            this.loadInterfaceStats();
+        }
     }
 
     formatBytes(bytes) {
@@ -483,6 +628,21 @@ class BridgeController {
         if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
         if (num < 1000000000) return (num / 1000000).toFixed(1) + 'M';
         return (num / 1000000000).toFixed(1) + 'B';
+    }
+
+    formatBytesPerSecond(bytesPerSec) {
+        if (bytesPerSec === 0) return '0 B/s';
+        const k = 1024;
+        const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
+        const i = Math.floor(Math.log(bytesPerSec) / Math.log(k));
+        return parseFloat((bytesPerSec / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    formatPacketsPerSecond(packetsPerSec) {
+        if (packetsPerSec === 0) return '0 pps';
+        if (packetsPerSec < 1000) return packetsPerSec.toFixed(1) + ' pps';
+        if (packetsPerSec < 1000000) return (packetsPerSec / 1000).toFixed(1) + ' Kpps';
+        return (packetsPerSec / 1000000).toFixed(1) + ' Mpps';
     }
 
     clearInterfaceModalSelections() {

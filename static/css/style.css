@@ -221,6 +221,88 @@ body {
     letter-spacing: 0.5px;
 }
 
+.stat-detail {
+    font-size: 10px;
+    color: #adb5bd;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+/* Packet Statistics */
+.packet-stat {
+    margin-bottom: 15px;
+}
+
+.packet-stat .stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: white;
+    margin-right: 15px;
+}
+
+.packet-incoming {
+    background-color: #28a745;
+}
+
+.packet-outgoing {
+    background-color: #007bff;
+}
+
+.packet-total {
+    border: 2px solid #6c757d;
+    background-color: #f8f9fa;
+}
+
+.packet-total .stat-icon {
+    background-color: #fd7e14;
+}
+
+.packet-total .stat-value {
+    color: #495057;
+    font-weight: 800;
+}
+
+.packet-total .stat-label {
+    color: #495057;
+    font-weight: 700;
+}
+
+.packet-error {
+    border: 2px solid #6c757d;
+    background-color: #f8f9fa;
+}
+
+.packet-error .stat-icon {
+    background-color: #dc3545;
+}
+
+.packet-error .stat-value {
+    color: #495057;
+    font-weight: 800;
+}
+
+.packet-error .stat-label {
+    color: #495057;
+    font-weight: 700;
+}
+
+/* Total Stats Row */
+.total-stats-row {
+    margin-top: 25px !important;
+    margin-bottom: 25px !important;
+    padding-top: 15px;
+    border-top: 2px solid #e9ecef;
+}
+
+.packet-total-icon {
+    background-color: #6c757d !important;
+}
+
 /* Log Output */
 .log-container {
     background-color: #1e1e1e;

@@ -152,54 +152,122 @@
                         <div class="card">
                             <div class="card-header">
                                 <h4><i class="fas fa-chart-line"></i> Network Statistics</h4>
-                                <small class="text-muted">
-                                    <i class="fas fa-sync-alt fa-spin"></i> Updating every second
-                                    <span class="ms-3" id="stats-timestamp">Last updated: --:--:--</span>
-                                </small>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <label for="interface-selector" class="form-label me-2 mb-0">
+                                            <i class="fas fa-ethernet"></i> Interface:
+                                        </label>
+                                        <select id="interface-selector" class="form-select form-select-sm" style="width: auto;">
+                                            <option value="">Select interface...</option>
+                                        </select>
+                                    </div>
+                                    <small class="text-muted">
+                                        <i class="fas fa-sync-alt fa-spin"></i> Updating every second
+                                    </small>
+                                </div>
                             </div>
                             <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-3">
+                                <!-- Interface Status -->
+                                <div class="row mb-3" id="interface-status" style="display: none;">
+                                    <div class="col-12">
+                                        <div class="alert alert-info d-flex align-items-center">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            <span id="interface-status-text">Interface status will appear here</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- RX Statistics -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
                                         <div class="stat-card">
                                             <div class="stat-icon">
                                                 <i class="fas fa-download"></i>
                                             </div>
                                             <div class="stat-content">
-                                                <div class="stat-value" id="rx-bytes">0</div>
-                                                <div class="stat-label">RX Bytes</div>
+                                                <div class="stat-value" id="rx-bytes">0 B/s</div>
+                                                <div class="stat-label">Incoming Data Rate</div>
+                                                <div class="stat-detail" id="rx-total">Total: 0 B</div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-6">
+                                        <div class="stat-card packet-stat">
+                                            <div class="stat-icon packet-incoming">
+                                                <i class="fas fa-arrow-down"></i>
+                                            </div>
+                                            <div class="stat-content">
+                                                <div class="stat-value" id="rx-packets">0 pps</div>
+                                                <div class="stat-label">Incoming Packets</div>
+                                                <div class="stat-detail" id="rx-packets-total">Total: 0</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- TX Statistics -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
                                         <div class="stat-card">
                                             <div class="stat-icon">
                                                 <i class="fas fa-upload"></i>
                                             </div>
                                             <div class="stat-content">
-                                                <div class="stat-value" id="tx-bytes">0</div>
-                                                <div class="stat-label">TX Bytes</div>
+                                                <div class="stat-value" id="tx-bytes">0 B/s</div>
+                                                <div class="stat-label">Outgoing Data Rate</div>
+                                                <div class="stat-detail" id="tx-total">Total: 0 B</div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
-                                        <div class="stat-card">
-                                            <div class="stat-icon">
+                                    <div class="col-md-6">
+                                        <div class="stat-card packet-stat">
+                                            <div class="stat-icon packet-outgoing">
+                                                <i class="fas fa-arrow-up"></i>
+                                            </div>
+                                            <div class="stat-content">
+                                                <div class="stat-value" id="tx-packets">0 pps</div>
+                                                <div class="stat-label">Outgoing Packets</div>
+                                                <div class="stat-detail" id="tx-packets-total">Total: 0</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Total Statistics -->
+                                <div class="row mb-4 total-stats-row">
+                                    <div class="col-md-4">
+                                        <div class="stat-card packet-stat packet-total">
+                                            <div class="stat-icon packet-total-icon">
+                                                <i class="fas fa-download"></i>
+                                            </div>
+                                            <div class="stat-content">
+                                                <div class="stat-value" id="total-bytes">0 B/s</div>
+                                                <div class="stat-label">Total Data Rate</div>
+                                                <div class="stat-detail" id="total-bytes-total">Total: 0 B</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-card packet-stat packet-total">
+                                            <div class="stat-icon packet-total-icon">
                                                 <i class="fas fa-exchange-alt"></i>
                                             </div>
                                             <div class="stat-content">
-                                                <div class="stat-value" id="packets">0</div>
-                                                <div class="stat-label">Packets</div>
+                                                <div class="stat-value" id="total-packets">0 pps</div>
+                                                <div class="stat-label">Total Packets</div>
+                                                <div class="stat-detail" id="total-packets-total">Total: 0</div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
-                                        <div class="stat-card">
-                                            <div class="stat-icon">
-                                                <i class="fas fa-exclamation-circle"></i>
+                                    <div class="col-md-4">
+                                        <div class="stat-card packet-stat packet-error">
+                                            <div class="stat-icon packet-error-icon">
+                                                <i class="fas fa-exclamation-triangle"></i>
                                             </div>
                                             <div class="stat-content">
-                                                <div class="stat-value" id="errors">0</div>
-                                                <div class="stat-label">Errors</div>
+                                                <div class="stat-value" id="error-rate">0%</div>
+                                                <div class="stat-label">Error Rate</div>
+                                                <div class="stat-detail" id="error-total">Total: 0 errors</div>
                                             </div>
                                         </div>
                                     </div>
